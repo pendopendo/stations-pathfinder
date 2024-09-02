@@ -132,29 +132,44 @@ func contains(slice []string, element string) bool {
     return false
 }
 
-// BFS to find the shortest paths
+// BFS to find all paths from start to end
 func bfs(network *Network, start, end string) [][]string {
-    queue := [][]string{{start}}
-    visited := make(map[string]bool)
-    visited[start] = true
     var paths [][]string
+    queue := []struct {
+        path    []string
+        visited map[string]bool
+    }{
+        {path: []string{start}, visited: map[string]bool{start: true}},
+    }
 
     for len(queue) > 0 {
-        path := queue[0]
+        current := queue[0]
         queue = queue[1:]
-        current := path[len(path)-1]
+        currentPath := current.path
+        visited := current.visited
+        currentStation := currentPath[len(currentPath)-1]
 
-        if current == end {
-            paths = append(paths, path)
+        if currentStation == end {
+            paths = append(paths, currentPath)
             continue
         }
 
-        for _, neighbor := range network.Connections[current] {
+        for _, neighbor := range network.Connections[currentStation] {
             if !visited[neighbor] {
-                newPath := append([]string{}, path...)
+                newVisited := make(map[string]bool)
+                for k, v := range visited {
+                    newVisited[k] = v
+                }
+                newVisited[neighbor] = true
+                newPath := append([]string{}, currentPath...)
                 newPath = append(newPath, neighbor)
-                queue = append(queue, newPath)
-                visited[neighbor] = true
+                queue = append(queue, struct {
+                    path    []string
+                    visited map[string]bool
+                }{
+                    path:    newPath,
+                    visited: newVisited,
+                })
             }
         }
     }
@@ -162,39 +177,87 @@ func bfs(network *Network, start, end string) [][]string {
     return paths
 }
 
-// Function to simulate the train movements with staggered starts
+// Function to simulate train movements with proper conditions
 func simulateTrains(paths [][]string, numTrains int) {
+    // Create an array of Train pointers to hold the trains
     trains := make([]*Train, numTrains)
+
+    // Assign each train to a path; if there are more trains than paths, cycle through paths
+    pathAssignments := make([]int, numTrains) // Array to keep track of which path each train is assigned to
     for i := 0; i < numTrains; i++ {
-        trains[i] = &Train{Name: fmt.Sprintf("T%d", i+1), Current: paths[0][0]} // All start at the initial station
+        // Create a train with a unique name and set its current station to the start of its assigned path
+        trains[i] = &Train{Name: fmt.Sprintf("T%d", i+1), Current: paths[i%len(paths)][0]}
+        pathAssignments[i] = i % len(paths) // Assign the train to a path index (cycling through if more trains than paths)
     }
 
-    for turn := 0; ; turn++ {
-        var movement []string
+    turn := 1 // Initialize the turn counter
+    for {     // Main simulation loop
+        var movement []string                      // List to keep track of movements made in the current turn
+        allTrainsAtDestination := true             // Flag to check if all trains have reached their destinations
+        occupiedStations := make(map[string]bool)  // Track stations occupied by trains during the turn
+
+        // Print current status of each train and mark their current positions as occupied
         for i, train := range trains {
-            path := paths[0] // All trains follow the first found path
-            if turn >= i && train.Current != path[len(path)-1] { // Only move the train if it's their turn
-                for j, station := range path {
-                    if station == train.Current && j < len(path)-1 {
-                        nextStation := path[j+1]
-                        train.Current = nextStation
-                        movement = append(movement, fmt.Sprintf("%s-%s", train.Name, nextStation))
-                        break
-                    }
-                }
+            assignedPath := paths[pathAssignments[i]] // Get the assigned path for this train
+            fmt.Printf("Train %s on path %v, at station %s\n", train.Name, assignedPath, train.Current)
+            occupiedStations[train.Current] = true // Mark current station as occupied
+
+            // Check if the train has reached its destination
+            if train.Current != assignedPath[len(assignedPath)-1] {
+                allTrainsAtDestination = false
             }
         }
-        if len(movement) == 0 {
-            break // If no train moved, end the simulation
-        }
-        fmt.Println(strings.Join(movement, " "))
-    }
-}
 
-// Function to get the index of a train
-func trainIndex(trainName string) int {
-    index, _ := strconv.Atoi(trainName[1:])
-    return index
+        // Exit early if all trains have reached their destinations
+        if allTrainsAtDestination {
+            fmt.Println("All trains have reached their destinations. Simulation ending.")
+            break // Stop the loop if all trains have reached their destinations
+        }
+
+        fmt.Printf("\nTurn %d:\n", turn) // Print the current turn
+
+        // Iterate through each train to check and perform movement
+        for i, train := range trains {
+            assignedPath := paths[pathAssignments[i]] // Get the assigned path for this train
+
+            // Check if the train has not yet reached the final station of its path
+            if train.Current != assignedPath[len(assignedPath)-1] {
+                fmt.Printf("  Checking movement for Train %s...\n", train.Name)
+
+                // Loop through the path to find the current station and determine the next station
+                for j, station := range assignedPath {
+                    if station == train.Current && j < len(assignedPath)-1 {
+                        nextStation := assignedPath[j+1] // Get the next station on the path
+
+                        // Allow trains to enter the end station without restrictions
+                        if nextStation == assignedPath[len(assignedPath)-1] || !occupiedStations[nextStation] {
+                            // Move the train to the next station
+                            train.Current = nextStation
+                            movement = append(movement, fmt.Sprintf("%s-%s", train.Name, nextStation)) // Record the movement
+                            fmt.Printf("  Train %s moved from %s to %s\n", train.Name, station, nextStation)
+                            occupiedStations[nextStation] = true    // Mark the next station as occupied
+                            occupiedStations[station] = false       // Free up the previous station
+                        } else {
+                            fmt.Printf("  Train %s cannot move to %s; station is occupied.\n", train.Name, nextStation)
+                        }
+                        break // Exit the loop after checking the movement for the train
+                    }
+                }
+            } else {
+                // This else block triggers when the train has reached its destination.
+                fmt.Printf("  Train %s has reached its destination.\n", train.Name)
+            }
+        }
+
+        // If no train moved during this turn and some trains are not at their destination, continue the loop
+        if len(movement) == 0 {
+            fmt.Println("All trains are stuck this turn but may move in subsequent turns.")
+        }
+
+        // Print the movements made during the turn
+        fmt.Printf("Movements this turn: %s\n", strings.Join(movement, " "))
+        turn++ // Increment the turn counter
+    }
 }
 
 func main() {
@@ -232,5 +295,11 @@ func main() {
         handleError("No path between the start and end stations")
     }
 
+    fmt.Println("Possible Paths:")
+    for _, path := range paths {
+        fmt.Println(path)
+    }
+
+    // Simulate trains on all found paths
     simulateTrains(paths, numTrains)
 }
