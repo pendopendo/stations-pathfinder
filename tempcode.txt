@@ -1,0 +1,378 @@
+package main
+
+import (
+    "bufio"
+    "errors"
+    "fmt"
+    "os"
+    "regexp"
+    "strconv"
+    "strings"
+)
+
+// Station struct to store station data
+type Station struct {
+    Name string
+    X    int
+    Y    int
+}
+
+// Train struct to store train data
+type Train struct {
+    Name    string
+    Current string
+}
+
+// Error handling
+func handleError(msg string) {
+    fmt.Fprintln(os.Stderr, "Error:", msg)
+    os.Exit(1)
+}
+
+// Network struct to store the whole network graph
+type Network struct {
+    Stations    map[string]*Station
+    Connections map[string][]string
+}
+
+// Add a bi-directional connection
+func (network *Network) addConnection(station1, station2 string) {
+    if !contains(network.Connections[station1], station2) {
+        network.Connections[station1] = append(network.Connections[station1], station2)
+    }
+    if !contains(network.Connections[station2], station1) {
+        network.Connections[station2] = append(network.Connections[station2], station1)
+    }
+}
+
+// Parse connections and ensure bidirectionality
+func parseConnections(scanner *bufio.Scanner, network *Network) error {
+    connectionRegex := regexp.MustCompile(`^\s*([a-zA-Z0-9_]+)\s*-\s*([a-zA-Z0-9_]+)\s*(?:#.*)?$`)
+    for scanner.Scan() {
+        line := strings.TrimSpace(scanner.Text())
+        if line == "" || strings.HasPrefix(line, "#") {
+            continue
+        }
+        match := connectionRegex.FindStringSubmatch(line)
+        if match == nil {
+            return errors.New("Invalid connection format: " + line)
+        }
+        station1, station2 := match[1], match[2]
+        if station1 == station2 {
+            return errors.New("Connection between the same station: " + station1)
+        }
+        if _, exists := network.Stations[station1]; !exists {
+            return errors.New("Connection with non-existing station: " + station1)
+        }
+        if _, exists := network.Stations[station2]; !exists {
+            return errors.New("Connection with non-existing station: " + station2)
+        }
+        network.addConnection(station1, station2)
+    }
+    return nil
+}
+
+// Read and parse the network map file
+func parseNetworkMap(filePath string) (*Network, error) {
+    file, err := os.Open(filePath)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+
+    network := &Network{
+        Stations:    make(map[string]*Station),
+        Connections: make(map[string][]string),
+    }
+
+    scanner := bufio.NewScanner(file)
+    stationSection := false
+    connectionSection := false
+
+    // Regex to allow flexible whitespace and comments
+    stationRegex := regexp.MustCompile(`^\s*([a-zA-Z0-9_]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*(?:#.*)?$`)
+    connectionRegex := regexp.MustCompile(`^\s*([a-zA-Z0-9_]+)\s*-\s*([a-zA-Z0-9_]+)\s*(?:#.*)?$`)
+
+    for scanner.Scan() {
+        line := strings.TrimSpace(scanner.Text())
+
+        // Ignore blank lines and comments
+        if line == "" || strings.HasPrefix(line, "#") {
+            continue
+        }
+
+        if line == "stations:" {
+            stationSection = true
+            connectionSection = false
+            continue
+        }
+
+        if line == "connections:" {
+            stationSection = false
+            connectionSection = true
+            continue
+        }
+
+        if stationSection {
+            match := stationRegex.FindStringSubmatch(line)
+            if match == nil {
+                return nil, errors.New("Invalid station format: " + line)
+            }
+            name, xStr, yStr := match[1], match[2], match[3]
+            x, _ := strconv.Atoi(xStr)
+            y, _ := strconv.Atoi(yStr)
+            if _, exists := network.Stations[name]; exists {
+                return nil, errors.New("Duplicate station name: " + name)
+            }
+            network.Stations[name] = &Station{Name: name, X: x, Y: y}
+        } else if connectionSection {
+            match := connectionRegex.FindStringSubmatch(line)
+            if match == nil {
+                return nil, errors.New("Invalid connection format: " + line)
+            }
+            station1, station2 := match[1], match[2]
+            if station1 == station2 {
+                return nil, errors.New("Connection between the same station: " + station1)
+            }
+            if _, exists := network.Stations[station1]; !exists {
+                return nil, errors.New("Connection with non-existing station: " + station1)
+            }
+            if _, exists := network.Stations[station2]; !exists {
+                return nil, errors.New("Connection with non-existing station: " + station2)
+            }
+            if contains(network.Connections[station1], station2) || contains(network.Connections[station2], station1) {
+                return nil, errors.New("Duplicate connection between " + station1 + " and " + station2)
+            }
+            network.Connections[station1] = append(network.Connections[station1], station2)
+            network.Connections[station2] = append(network.Connections[station2], station1)
+        }
+    }
+
+    if len(network.Stations) > 10000 {
+        return nil, errors.New("Map contains more than 10,000 stations")
+    }
+
+    if err := scanner.Err(); err != nil {
+        return nil, err
+    }
+
+    return network, nil
+}
+
+// Check if an element exists in a slice
+func contains(slice []string, element string) bool {
+    for _, e := range slice {
+        if e == element {
+            return true
+        }
+    }
+    return false
+}
+
+func dynamicBFS(network *Network, startStation, endStation string, occupiedStations, usedSegments map[string]bool) []string {
+    if startStation == endStation {
+        return []string{startStation}
+    }
+
+    queue := []string{startStation}
+    predecessors := make(map[string]string)
+    predecessors[startStation] = ""
+
+    fmt.Printf("Starting BFS from %s to %s\n", startStation, endStation)
+
+    for len(queue) > 0 {
+        current := queue[0]
+        queue = queue[1:]
+
+        fmt.Printf("Current station: %s\n", current)
+        fmt.Printf("  Queue: %v\n", queue)
+        fmt.Printf("  Predecessors: %v\n", predecessors)
+
+        if current == endStation {
+            // Reconstruct the path
+            path := []string{}
+            for at := endStation; at != ""; at = predecessors[at] {
+                path = append([]string{at}, path...)
+            }
+            fmt.Printf("Path found: %v\n", path)
+            return path
+        }
+
+        for _, neighbor := range network.Connections[current] {
+            segment := fmt.Sprintf("%s-%s", current, neighbor)
+            if !occupiedStations[neighbor] && !usedSegments[segment] {
+                if _, visited := predecessors[neighbor]; !visited {
+                    queue = append(queue, neighbor)
+                    predecessors[neighbor] = current
+                    fmt.Printf("  Adding neighbor %s to queue\n", neighbor)
+                }
+            } else {
+                fmt.Printf("  Skipping neighbor %s; occupied or segment used\n", neighbor)
+            }
+        }
+    }
+
+    fmt.Println("No path found.")
+    return nil // No path found
+}
+
+func simulateTrains(network *Network, startStation, endStation string, numTrains int) {
+    // Print network debug info
+    //printNetworkDebug(network, startStation, endStation)
+
+    trains := make([]*Train, numTrains)
+
+    // Initialize all trains at the start station
+    for i := 0; i < numTrains; i++ {
+        trains[i] = &Train{Name: fmt.Sprintf("T%d", i+1), Current: startStation}
+    }
+
+    turn := 1
+    consecutiveStuckTurns := 0
+
+    for {
+        usedSegments := make(map[string]bool)
+        occupiedStations := make(map[string]bool)
+
+        for _, train := range trains {
+            if train.Current != endStation {
+                occupiedStations[train.Current] = true
+            }
+        }
+
+        movement := []string{}
+        allTrainsAtDestination := true
+
+        fmt.Printf("\nTurn %d:\n", turn)
+
+        // Debug output for possible paths before moving trains
+        fmt.Println("Debug: Possible paths for each train:")
+        for _, train := range trains {
+            currentPath := dynamicBFS(network, train.Current, endStation, occupiedStations, usedSegments)
+            if len(currentPath) < 2 {
+                fmt.Printf("  Train %s path: %v\n", train.Name, currentPath)
+            } else {
+                fmt.Printf("  Train %s path: %v\n", train.Name, currentPath)
+            }
+        }
+
+        for _, train := range trains {
+            if train.Current == endStation {
+                fmt.Printf("  Train %s has reached its destination.\n", train.Name)
+                continue
+            }
+
+            fmt.Printf("  Train %s starting at %s\n", train.Name, train.Current)
+            fmt.Printf("    Occupied Stations: %v\n", occupiedStations)
+            fmt.Printf("    Used Segments: %v\n", usedSegments)
+
+            currentPath := dynamicBFS(network, train.Current, endStation, occupiedStations, usedSegments)
+
+            if len(currentPath) < 2 {
+                fmt.Printf("    No available path found for Train %s.\n", train.Name)
+                allTrainsAtDestination = false
+                continue
+            }
+
+            nextStation := currentPath[1]
+            segment := fmt.Sprintf("%s-%s", train.Current, nextStation)
+
+            if !occupiedStations[nextStation] && !usedSegments[segment] {
+                train.Current = nextStation
+                movement = append(movement, fmt.Sprintf("%s-%s", train.Name, nextStation))
+                fmt.Printf("  Train %s moved from %s to %s\n", train.Name, train.Current, nextStation)
+
+                occupiedStations[nextStation] = true
+                usedSegments[segment] = true
+            } else {
+                fmt.Printf("  Train %s cannot move to %s; station is occupied or track is used.\n", train.Name, nextStation)
+                allTrainsAtDestination = false
+            }
+        }
+
+        if len(movement) == 0 {
+            consecutiveStuckTurns++
+            fmt.Println("All trains are stuck this turn but may move in subsequent turns.")
+        } else {
+            consecutiveStuckTurns = 0
+        }
+
+        fmt.Printf("Movements this turn: %s\n", strings.Join(movement, " "))
+
+        if allTrainsAtDestination {
+            fmt.Println("All trains have reached their destinations. Simulation ending.")
+            break
+        }
+
+        if consecutiveStuckTurns >= 2 {
+            fmt.Println("Faulty simulation detected: No trains moved for 2 consecutive turns. Exiting simulation.")
+            break
+        }
+
+        turn++
+    }
+}
+
+
+
+
+/*func printNetworkDebug(network *Network, startStation, endStation string) {
+    fmt.Println("Network Debug Info:")
+    fmt.Println("Stations:")
+    for name, station := range network.Stations {
+        fmt.Printf("  %s: (%d, %d)\n", name, station.X, station.Y)
+    }
+    
+    fmt.Println("Connections:")
+    visited := make(map[string]bool)
+    
+    var printConnections func(string)
+    printConnections = func(station string) {
+        if visited[station] {
+            return
+        }
+        visited[station] = true
+        for _, neighbor := range network.Connections[station] {
+            if station < neighbor { // Prevent duplicate printing
+                fmt.Printf("  %s-%s\n", station, neighbor)
+            }
+            printConnections(neighbor)
+        }
+    }
+    
+    printConnections(startStation)
+}*/
+
+func main() {
+    if len(os.Args) != 5 {
+        handleError("Incorrect number of command line arguments")
+    }
+
+    mapFile := os.Args[1]
+    startStation := os.Args[2]
+    endStation := os.Args[3]
+    numTrains, err := strconv.Atoi(os.Args[4])
+    if err != nil || numTrains <= 0 {
+        handleError("Number of trains is not a valid positive integer")
+    }
+
+    network, err := parseNetworkMap(mapFile)
+    if err != nil {
+        handleError(err.Error())
+    }
+
+    if _, exists := network.Stations[startStation]; !exists {
+        handleError("Start station does not exist")
+    }
+
+    if _, exists := network.Stations[endStation]; !exists {
+        handleError("End station does not exist")
+    }
+
+    if startStation == endStation {
+        handleError("Start and end station are the same")
+    }
+
+    // Simulate trains on the dynamic path
+    simulateTrains(network, startStation, endStation, numTrains)
+}
