@@ -177,7 +177,7 @@ func bfs(network *Network, start, end string) [][]string {
     return paths
 }
 
-// Function to simulate train movements with proper conditions
+// simulateTrains simulates train movements with proper conditions, preventing simultaneous use of the same track
 func simulateTrains(paths [][]string, numTrains int) {
     // Create an array of Train pointers to hold the trains
     trains := make([]*Train, numTrains)
@@ -192,9 +192,10 @@ func simulateTrains(paths [][]string, numTrains int) {
 
     turn := 1 // Initialize the turn counter
     for {     // Main simulation loop
-        var movement []string                      // List to keep track of movements made in the current turn
-        allTrainsAtDestination := true             // Flag to check if all trains have reached their destinations
-        occupiedStations := make(map[string]bool)  // Track stations occupied by trains during the turn
+        var movement []string                     // List to keep track of movements made in the current turn
+        allTrainsAtDestination := true            // Flag to check if all trains have reached their destinations
+        occupiedStations := make(map[string]bool) // Track stations occupied by trains during the turn
+        usedSegments := make(map[string]bool)     // Track segments used by trains during the turn
 
         // Print current status of each train and mark their current positions as occupied
         for i, train := range trains {
@@ -228,17 +229,19 @@ func simulateTrains(paths [][]string, numTrains int) {
                 for j, station := range assignedPath {
                     if station == train.Current && j < len(assignedPath)-1 {
                         nextStation := assignedPath[j+1] // Get the next station on the path
+                        segment := fmt.Sprintf("%s-%s", station, nextStation)
 
                         // Allow trains to enter the end station without restrictions
-                        if nextStation == assignedPath[len(assignedPath)-1] || !occupiedStations[nextStation] {
+                        if (nextStation == assignedPath[len(assignedPath)-1] || !occupiedStations[nextStation]) && !usedSegments[segment] {
                             // Move the train to the next station
                             train.Current = nextStation
                             movement = append(movement, fmt.Sprintf("%s-%s", train.Name, nextStation)) // Record the movement
                             fmt.Printf("  Train %s moved from %s to %s\n", train.Name, station, nextStation)
-                            occupiedStations[nextStation] = true    // Mark the next station as occupied
-                            occupiedStations[station] = false       // Free up the previous station
+                            occupiedStations[nextStation] = true  // Mark the next station as occupied
+                            occupiedStations[station] = false     // Free up the previous station
+                            usedSegments[segment] = true          // Mark the segment as used for this turn
                         } else {
-                            fmt.Printf("  Train %s cannot move to %s; station is occupied.\n", train.Name, nextStation)
+                            fmt.Printf("  Train %s cannot move to %s; station is occupied or track is already used.\n", train.Name, nextStation)
                         }
                         break // Exit the loop after checking the movement for the train
                     }
