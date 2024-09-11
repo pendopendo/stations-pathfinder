@@ -258,8 +258,8 @@ func simulateTrains(network *Network, startStation, endStation string, numTrains
                 // Update visited history
                 visitedHistories[i][nextStation] = true
 
-                fmt.Printf("Occupied Stations after move: %v\n", occupiedStations)
-                fmt.Printf("Used Segments after move: %v\n", usedSegments)
+                //fmt.Printf("Occupied Stations after move: %v\n", occupiedStations)
+                //fmt.Printf("Used Segments after move: %v\n", usedSegments)
 
                 // Update delay for subsequent trains
                 for j := i + 1; j < numTrains; j++ {
@@ -308,12 +308,10 @@ func simulateTrains(network *Network, startStation, endStation string, numTrains
 func dynamicDFS(trainName, startStation, endStation string, network *Network, occupiedStations, usedSegments map[string]bool, trains []*Train, visitedHistory map[string]bool) []string {
     // Initialize the stack with the start station
     stack := [][]string{{startStation}}
-    // Map to keep track of visited stations
-    //visited := make(map[string]bool)
     // Slice to store all possible paths
     var allPaths [][]string
 
-    fmt.Printf("Train %s: Starting DFS from %s to %s\n", trainName, startStation, endStation)
+    fmt.Printf("\nTrain %s: Starting DFS from %s to %s\n", trainName, startStation, endStation)
 
     // DFS loop
     for len(stack) > 0 {
@@ -342,23 +340,6 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
             // Push the new path onto the stack
             stack = append(stack, newPath)
         }
-
-        /*// If the current station has not been visited
-        if !visited[currentStation] {
-            visited[currentStation] = true
-            // Iterate over all neighbors of the current station
-            for _, neighbor := range network.Connections[currentStation] {
-                // Avoid loops and backtracking
-                if contains(currentPath, neighbor) || visitedHistory[neighbor] {
-                    continue
-                }
-                // Create a new path by copying the current path and adding the neighbor
-                newPath := append([]string{}, currentPath...)
-                newPath = append(newPath, neighbor)
-                // Push the new path onto the stack
-                stack = append(stack, newPath)
-            }
-        }*/
     }
 
     // If no paths were found, return nil
@@ -367,13 +348,29 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
         return nil
     }
 
-    // Find the shortest path among all found paths that is available
+    // Initialize variables for shortest and alternative paths
     var shortestPath []string
-    var shortestPathLength int
+    var shortestPathLength int = 10000 //leave at 10000 since max map 10000 stations
     var alternativePath []string
-    var alternativePathLength int
+    var alternativePathLength int = 10000 //leave at 10000 since max map 10000 stations
+    fmt.Printf("Initial SPF: %d\n", shortestPathLength)
 
-    for _, path := range allPaths {     
+    numTrains := len(trains)
+    currentTrain := 0
+    for i, train := range trains {
+        if train.Name == trainName {
+            currentTrain = i + 1
+            break
+        }
+    }
+
+    if currentTrain == 0 {
+        fmt.Printf("Train %s not found in the train list.\n", trainName)
+        return nil
+    }
+
+    // Find the shortest path and alternative paths
+    for _, path := range allPaths {
         available := true
         pathLength := len(path)
         // Check only the segment between the current and next station
@@ -381,39 +378,48 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
             segment := fmt.Sprintf("%s-%s", path[0], path[1])
             if occupiedStations[path[1]] || usedSegments[segment] {
                 available = false
-            }
+            }   
         }
 
+        // Debugging print statements
+        fmt.Printf("Train %s: Checking path %v, Length: %d\n", trainName, path, pathLength)
+
+        // Update the shortest path and its length
         if available {
-            if shortestPath == nil || pathLength < shortestPathLength {
+            if pathLength < shortestPathLength {
+                fmt.Printf("pathlength %d < shortestpathlength %d\n", pathLength, shortestPathLength)
                 shortestPath = path
                 shortestPathLength = pathLength
+                fmt.Printf("Train %s: New shortest path: %v, Length: %d\n", trainName, shortestPath, shortestPathLength)
             }
         } else {
-            if alternativePath == nil || pathLength < alternativePathLength {
+            if pathLength < alternativePathLength {
+                fmt.Printf("pathlength %d < alternativepathlength %d\n", pathLength, alternativePathLength)
                 alternativePath = path
                 alternativePathLength = pathLength
+                fmt.Printf("Train %s: New alternative path: %v, Length: %d\n", trainName, alternativePath, alternativePathLength)
             }
         }
-}
+    }
+    fmt.Printf("pealeT%dnewshortestpath\n", currentTrain)
+    // Calculate threshold using the shortest path length
+    threshold := numTrains - currentTrain + shortestPathLength
+    fmt.Printf("Train %s: numTrains %d - currentTrain %d + shortestPathLength %d = Calculated threshold: %d\n", trainName, numTrains, currentTrain, shortestPathLength, threshold)
 
     // If the shortest path is blocked, compare the cumulative lengths
     if shortestPath == nil && alternativePath != nil {
         // Calculate the cumulative length for the alternative path
-        cumulativeLength := alternativePathLength
-        for i := 1; i < len(trains); i++ {
-            cumulativeLength += alternativePathLength
-        }
-
+        cumulativeLength := alternativePathLength * numTrains
         // Calculate the cumulative length for the shortest path if it were to wait
-        waitLength := shortestPathLength
-        for i := 1; i < len(trains); i++ {
-            waitLength += shortestPathLength
-        }
+        waitLength := shortestPathLength * numTrains
+
+        fmt.Printf("Train %s: Cumulative length of alternative path: %d\n", trainName, cumulativeLength)
+        fmt.Printf("Train %s: Waiting length for shortest path: %d\n", trainName, waitLength)
 
         // Choose the path with the lesser cumulative length
         if cumulativeLength < waitLength {
             shortestPath = alternativePath
+            fmt.Printf("Train %s: Alternative path chosen over waiting: %v\n", trainName, shortestPath)
         }
     }
 
@@ -434,20 +440,6 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
     return shortestPath
 }
 
-func printDFSDebugInfo(stack [][]string, visited map[string]bool, predecessors map[string]string) {
-    fmt.Println("c239Stack Debug Info:")
-    for i, path := range stack {
-        fmt.Printf("  %d: %v\n", i, path)
-    }
-    fmt.Println("c243Visited Debug Info:")
-    for station := range visited {
-        fmt.Printf("  %s\n", station)
-    }
-    fmt.Println("c247Predecessors Debug Info:")
-    for station, pred := range predecessors {
-        fmt.Printf("  %s: %s\n", station, pred)
-    }
-}
 
 func main() {
     if len(os.Args) != 2 && len(os.Args) != 5 {
