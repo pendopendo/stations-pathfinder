@@ -180,22 +180,31 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
 		return nil
 	}
 
-	// Siia uus funktsioon et filtreerida leitud teid
 	// 1. Initialize variable to store combinations of non-crossing paths
 	var bestPathCombination [][]string
 	var allPathCombinations [][][]string
 
 	// 2. Helper function to check if two paths cross each other (share any segments)
 	pathsConflict := func(path1, path2 []string) bool {
-		for i := 0; i < len(path1)-1; i++ {
-			for j := 0; j < len(path2)-1; j++ {
-				if path1[i] == path2[j] && path1[i+1] == path2[j+1] {
-					// If they share the same segment between two stations
-					return true
-				}
+		// If the paths are too short to have any intermediate stations, return false
+		if len(path1) <= 2 || len(path2) <= 2 {
+			return false // No intermediate stations to check
+		}
+
+		// Create a set (map) for path1's intermediate stations (ignore first and last station)
+		stationSet := make(map[string]bool)
+		for i := 1; i < len(path1)-1; i++ { // Skip the first and last station
+			stationSet[path1[i]] = true
+		}
+
+		// Check if any intermediate station from path2 exists in path1's set
+		for i := 1; i < len(path2)-1; i++ { // Skip the first and last station
+			if stationSet[path2[i]] {
+				return true // Conflict found: shared intermediate station
 			}
 		}
-		return false
+
+		return false // No conflict found
 	}
 
 	// 3. Function to calculate total length of a set of paths
