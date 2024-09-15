@@ -1,0 +1,129 @@
+func dynamicDFS(trainName, startStation, endStation string, network *Network, occupiedStations, usedSegments map[string]bool, trains []*Train, visitedHistory map[string]bool) []string {
+	// Initialize the stack with the start station
+	stack := [][]string{{startStation}}
+	// Slice to store all possible paths
+	var allPaths [][]string
+	// Initialize variables for shortest and alternative paths
+	var activePath []string
+
+	fmt.Printf("\nTrain %s: Starting DFS from %s to %s\n", trainName, startStation, endStation)
+
+	// DFS loop
+	for len(stack) > 0 {
+		// Pop the last path from the stack
+		currentPath := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		// Get the current station from the path
+		currentStation := currentPath[len(currentPath)-1]
+
+		// If the current station is the end station, add the path to allPaths
+		if currentStation == endStation {
+			//fmt.Printf("Train %s: Path found: %v\n", trainName, currentPath)
+			allPaths = append(allPaths, currentPath)
+			continue
+		}
+
+		// Iterate over all neighbors of the current station
+		for _, neighbor := range network.Connections[currentStation] {
+			// Avoid loops and backtracking
+			if contains(currentPath, neighbor) || visitedHistory[neighbor] {
+				continue
+			}
+			// Create a new path by copying the current path and adding the neighbor
+			newPath := append([]string{}, currentPath...)
+			newPath = append(newPath, neighbor)
+			// Push the new path onto the stack
+			stack = append(stack, newPath)
+		}
+	}
+
+	// If no paths were found, return nil
+	if len(allPaths) == 0 {
+		fmt.Printf("Train %s: No path found.\n", trainName)
+		return nil
+	}
+
+	numTrains := len(trains)
+	currentTrain := 0
+	for i, train := range trains {
+		if train.Name == trainName {
+			currentTrain = i + 1
+			break
+		}
+	}
+
+	if currentTrain == 0 {
+		fmt.Printf("Train %s not found in the train list.\n", trainName)
+		return nil
+	}
+
+	// Find the shortest path and alternative paths
+	for _, path := range allPaths {
+		available := true
+		pathLength := len(path)
+		shortestPathLength := len(allPaths[0])
+		shortestPath := allPaths[0]
+		alternativePath := allPaths[1]
+		alternativePathLength := len(allPaths[1])
+		if pathLength < shortestPathLength {
+			shortestPath = path
+			shortestPathLength = pathLength
+		}
+		if pathLength < alternativePathLength {
+			alternativePath = path
+			alternativePathLength = pathLength
+		}
+		// Check only the segment between the current and next station
+		if len(path) > 1 {
+			segment := fmt.Sprintf("%s-%s", path[0], path[1])
+			if occupiedStations[path[1]] || usedSegments[segment] {
+				threshold := numTrains - currentTrain + shortestPathLength
+				if threshold >= alternativePathLength {
+					available = false
+				}
+
+			}
+		}
+		if available {
+			if reflect.DeepEqual(path, shortestPath) {
+				activePath = shortestPath
+			} else {
+				activePath = alternativePath
+			}
+		}
+	}
+
+	/*
+		// If the shortest path is blocked, compare the cumulative lengths
+		if shortestPath == nil && alternativePath != nil {
+			// Calculate the cumulative length for the alternative path
+			cumulativeLength := alternativePathLength * numTrains
+			// Calculate the cumulative length for the shortest path if it were to wait
+			waitLength := shortestPathLength * numTrains
+
+			fmt.Printf("Train %s: Cumulative length of alternative path: %d\n", trainName, cumulativeLength)
+			fmt.Printf("Train %s: Waiting length for shortest path: %d\n", trainName, waitLength)
+
+			// Choose the path with the lesser cumulative length
+			if cumulativeLength < waitLength {
+				shortestPath = alternativePath
+				fmt.Printf("Train %s: Alternative path chosen over waiting: %v\n", trainName, shortestPath)
+			}
+		}*/
+
+	// If no available path was found, return nil
+	if activePath == nil {
+		fmt.Printf("Train %s: No available path found.\n", trainName)
+		return nil
+	}
+
+	// Print all found paths and the selected shortest path
+	fmt.Printf("Train %s: Found paths:\n", trainName)
+	//for _, path := range allPaths {
+	//fmt.Printf("Path: %v, Length: %d\n", path, len(path))
+	//}
+	fmt.Printf("Train %s: Selected path: %v\n", trainName, activePath)
+
+	// Return the shortest available path
+	return activePath
+}
