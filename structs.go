@@ -9,8 +9,9 @@ type Station struct {
 
 // Train struct to store train data
 type Train struct {
-	Name    string
-	Current string
+	Name         string
+	Current      string
+	AssignedPath []string
 }
 
 // Network struct to store the whole network graph
