@@ -10,38 +10,6 @@ import (
 	"strings"
 )
 
-// Function to find all possible paths between two stations
-func findAllPaths(network *Network, startStation, endStation string) []string {
-	var paths []string
-	queue := []string{startStation}
-	predecessors := make(map[string]string)
-	predecessors[startStation] = ""
-
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-
-		if current == endStation {
-			// Reconstruct the path
-			path := []string{}
-			for at := endStation; at != ""; at = predecessors[at] {
-				path = append([]string{at}, path...)
-			}
-			paths = append(paths, fmt.Sprintf("%v", path))
-			continue
-		}
-
-		for _, neighbor := range network.Connections[current] {
-			if _, visited := predecessors[neighbor]; !visited {
-				queue = append(queue, neighbor)
-				predecessors[neighbor] = current
-			}
-		}
-	}
-
-	return paths
-}
-
 // Read and parse the network map file
 func parseNetworkMap(filePath string) (*Network, error) {
 	file, err := os.Open(filePath)
@@ -58,7 +26,10 @@ func parseNetworkMap(filePath string) (*Network, error) {
 
 	scanner := bufio.NewScanner(file)
 	stationSection := false
+	stationSectionEncountered := false
 	connectionSection := false
+	connectionSectionEncountered := false
+	coordinates := make(map[string]string) // Key: "x,y", Value: station name
 
 	// Regex to allow flexible whitespace and comments
 	stationRegex := regexp.MustCompile(`^\s*([a-zA-Z0-9_]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*(?:#.*)?$`)
@@ -75,26 +46,39 @@ func parseNetworkMap(filePath string) (*Network, error) {
 		if line == "stations:" {
 			stationSection = true
 			connectionSection = false
+			stationSectionEncountered = true
 			continue
 		}
 
 		if line == "connections:" {
 			stationSection = false
 			connectionSection = true
+			connectionSectionEncountered = true
 			continue
 		}
 
 		if stationSection {
 			match := stationRegex.FindStringSubmatch(line)
 			if match == nil {
-				return nil, errors.New("Invalid station format: " + line)
+				return nil, errors.New("Invalid station format: " + line + ". Please remove any invalid characters from station name")
 			}
 			name, xStr, yStr := match[1], match[2], match[3]
-			x, _ := strconv.Atoi(xStr)
-			y, _ := strconv.Atoi(yStr)
+			x, err := strconv.Atoi(xStr)
+			if err != nil || x < 0 {
+				return nil, errors.New("Invalid X coordinate for station: " + name)
+			}
+			y, err := strconv.Atoi(yStr)
+			if err != nil || y < 0 {
+				return nil, errors.New("Invalid Y coordinate for station: " + name)
+			}
 			if _, exists := network.Stations[name]; exists {
 				return nil, errors.New("Duplicate station name: " + name)
 			}
+			coordKey := fmt.Sprintf("%d,%d", x, y)
+			if existingStation, exists := coordinates[coordKey]; exists {
+				return nil, errors.New("Stations '" + name + "' and '" + existingStation + "' share the same coordinates (" + coordKey + ")")
+			}
+			coordinates[coordKey] = name
 			network.Stations[name] = &Station{Name: name, X: x, Y: y}
 		} else if connectionSection {
 			match := connectionRegex.FindStringSubmatch(line)
@@ -119,6 +103,13 @@ func parseNetworkMap(filePath string) (*Network, error) {
 		}
 	}
 
+	if !stationSectionEncountered {
+		return nil, errors.New("Map does not contain a 'stations:' section")
+	}
+	if !connectionSectionEncountered {
+		return nil, errors.New("Map does not contain a 'connections:' section")
+	}
+
 	if len(network.Stations) > 10000 {
 		return nil, errors.New("map contains more than 10,000 stations")
 	}
@@ -127,15 +118,23 @@ func parseNetworkMap(filePath string) (*Network, error) {
 		return nil, err
 	}
 
-	// Precompute all possible paths between stations
-	for start := range network.Stations {
-		network.Paths[start] = make(map[string][]string)
-		for end := range network.Stations {
-			if start != end {
-				network.Paths[start][end] = findAllPaths(network, start, end)
+	return network, nil
+}
+
+func pathExists(start, end string, network *Network) bool {
+	visited := make(map[string]bool)
+	var dfs func(station string) bool
+	dfs = func(station string) bool {
+		if station == end {
+			return true
+		}
+		visited[station] = true
+		for _, neighbor := range network.Connections[station] {
+			if !visited[neighbor] && dfs(neighbor) {
+				return true
 			}
 		}
+		return false
 	}
-
-	return network, nil
+	return dfs(start)
 }

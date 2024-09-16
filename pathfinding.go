@@ -1,3 +1,10 @@
+package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
 func dynamicDFS(trainName, startStation, endStation string, network *Network, occupiedStations, usedSegments map[string]bool, trains []*Train, visitedHistory map[string]bool) []string {
 	// Initialize the stack with the start station
 	stack := [][]string{{startStation}}
@@ -5,8 +12,6 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
 	var allPaths [][]string
 	// Initialize variables for the active path
 	var activePath []string
-
-	fmt.Printf("\nTrain %s: Starting DFS from %s to %s\n", trainName, startStation, endStation)
 
 	// DFS loop
 	for len(stack) > 0 {
@@ -35,11 +40,9 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
 			stack = append(stack, newPath)
 		}
 	}
-	//fmt.Printf("Train %s: All paths found: %v\n", trainName, allPaths)
 
 	// If no paths were found, return nil
 	if len(allPaths) == 0 {
-		fmt.Printf("Train %s: No path found.\n", trainName)
 		return nil
 	}
 
@@ -150,6 +153,31 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
 		}
 	}
 
+	// Check if the current alternativePath has occupied stations or segments
+	alternativePathAvailable := true
+	if len(alternativePath) > 1 {
+		for i := 0; i < len(alternativePath)-1; i++ {
+			segment := fmt.Sprintf("%s-%s", alternativePath[i], alternativePath[i+1])
+			if occupiedStations[alternativePath[i+1]] || usedSegments[segment] {
+				alternativePathAvailable = false
+				break
+			}
+		}
+	}
+
+	// If the current alternativePath is not available, find a new alternative path
+	if !alternativePathAvailable {
+		for _, path := range bestPathCombination {
+			if len(path) > 1 && !reflect.DeepEqual(path, shortestPath) {
+				segment := fmt.Sprintf("%s-%s", path[0], path[1])
+				if !occupiedStations[path[1]] && !usedSegments[segment] {
+					alternativePath = path
+					break
+				}
+			}
+		}
+	}
+
 	// Get the train's index in the train list for threshold calculation
 	numTrains := len(trains)
 	currentTrain := 0
@@ -182,13 +210,9 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
 	}
 
 	// If no available path was found, return nil
-	if activePath == nil {
-		fmt.Printf("Train %s: No available path found.\n", trainName)
+	if activePath == nil || (len(activePath) > 1 && occupiedStations[activePath[1]] && usedSegments[fmt.Sprintf("%s-%s", activePath[0], activePath[1])]) {
 		return nil
 	}
-
-	// Print the selected path
-	fmt.Printf("Train %s: Selected path: %v\n", trainName, activePath)
 
 	// Return the selected path
 	return activePath

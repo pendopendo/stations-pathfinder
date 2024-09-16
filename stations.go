@@ -87,15 +87,19 @@ func main() {
 	}
 
 	if _, exists := network.Stations[startStation]; !exists {
-		handleError("Start station does not exist")
+		handleError("Start station does not exist: " + startStation)
 	}
 
 	if _, exists := network.Stations[endStation]; !exists {
-		handleError("End station does not exist")
+		handleError("End station does not exist: " + endStation)
 	}
 
 	if startStation == endStation {
-		handleError("Start and end station are the same")
+		handleError("Start station: '" + startStation + "' and end station: '" + endStation + "' are the same")
+	}
+
+	if !pathExists(startStation, endStation, network) {
+		handleError("No path exists between the start station: '" + startStation + "' and end station: '" + endStation + "'")
 	}
 
 	// Simulate trains on the dynamic path
