@@ -68,6 +68,12 @@ func main() {
 			if err != nil || numTrains <= 0 {
 				handleError("Number of trains is not a valid positive integer")
 			}
+		} else if testName == "10000" {
+			fmt.Println("Running test for large map")
+			mapFile = "10000.map"
+			startStation = "000"
+			endStation = "001"
+			numTrains = 2
 		} else {
 			handleError("Unknown test name")
 		}

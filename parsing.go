@@ -51,10 +51,14 @@ func parseNetworkMap(filePath string) (*Network, error) {
 		}
 
 		if line == "connections:" {
-			stationSection = false
 			connectionSection = true
+			stationSection = false
 			connectionSectionEncountered = true
 			continue
+		}
+
+		if !stationSectionEncountered && connectionSectionEncountered {
+			return nil, errors.New("Map does not contain a 'stations:' section")
 		}
 
 		if stationSection {
@@ -103,10 +107,7 @@ func parseNetworkMap(filePath string) (*Network, error) {
 		}
 	}
 
-	if !stationSectionEncountered {
-		return nil, errors.New("Map does not contain a 'stations:' section")
-	}
-	if !connectionSectionEncountered {
+	if !connectionSectionEncountered && stationSectionEncountered {
 		return nil, errors.New("Map does not contain a 'connections:' section")
 	}
 

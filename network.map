@@ -80,7 +80,7 @@ large,4,6
 35,3,5
 36,3,6
 
-connections:
+#connections:
 #square-port
 bond_square-apple_avenue
 apple_avenue-orange_junction
