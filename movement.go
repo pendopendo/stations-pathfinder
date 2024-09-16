@@ -348,7 +348,7 @@ func dynamicDFS(trainName, startStation, endStation string, network *Network, oc
 	}
 
 	// If no available path was found, return nil
-	if activePath == nil {
+	if activePath == nil || (len(activePath) > 1 && occupiedStations[activePath[1]] && usedSegments[fmt.Sprintf("%s-%s", activePath[0], activePath[1])]) {
 		fmt.Printf("Train %s: No available path found.\n", trainName)
 		return nil
 	}
