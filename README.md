@@ -15,11 +15,12 @@ This is a Command-Line Tool (CLT) meant to be used for optimising movement for m
 
 - To run the CLT, simply type the proper command to the command line, one example being:
   * ```go run . network.map waterloo st_pancras 2``` where:
-  * network.map: the file containing the stations and connections
-  * waterloo: starting station
-  * st_pancras: end station
-  * 2: number of trains
+  * ```network.map```: the file containing the stations and connections
+  * ```waterloo```: starting station
+  * ```st_pancras```: end station
+  * ```2```: number of trains
 
 - There is also the option to run a set of prescripted commands to test the CLT's functionality with the following command:
   * ```go run . test[#]``` where:
-  * #: marks numbers from 0...7, with "0" running tests 1...7 simultaneously
+  * ```#```: marks numbers from ```0...7```, with "0" running tests 1...7 simultaneously
+  * ```go run . 10000``` will run a simulation with map map file that has more than 10000 stations in it, properly displaying that specific error handling function. it can also be run with the standard command, exchanging the ```network.map``` argument with ```10000.map```

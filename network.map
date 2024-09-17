@@ -1,5 +1,7 @@
 stations:
 #square-port
+#duplicatestation
+#bond_square,20,6
 bond_square,20,6
 apple_avenue,7,7
 orange_junction,6,1
@@ -80,10 +82,12 @@ large,4,6
 35,3,5
 36,3,6
 
-#connections:
+connections:
 #square-port
 bond_square-apple_avenue
 apple_avenue-orange_junction
+# duplicateconenction
+#orange_junction-space_port
 orange_junction-space_port
 
 #London Network Map
@@ -91,6 +95,7 @@ waterloo-victoria
 waterloo-euston  
 st_pancras-euston
 victoria-st_pancras
+
 
 #beethoven-part
 beethoven-handel
