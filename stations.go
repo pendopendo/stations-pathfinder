@@ -42,6 +42,7 @@ func main() {
 		"test7": {"small", "large", "9"},
 	}
 
+	// eraldi funktsioonina parem testida, flagiga test case'd
 	if len(os.Args) == 2 {
 		testName := os.Args[1]
 		if testName == "test0" {

@@ -44,6 +44,7 @@ func parseNetworkMap(filePath string) (*Network, error) {
 	duplicateconnectionflag := false
 
 	//variables for error handling
+	// kirjutada muutujad suurte tähtedega
 	var (
 		stationformatline             string
 		xcoordinatename               string

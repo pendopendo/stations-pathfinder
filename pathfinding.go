@@ -5,6 +5,8 @@ import (
 	"reflect"
 )
 
+// errorfunktsioonid wrappituna annavad parema erorrite jada
+// helperfunktsioonid et kergem lugeda oleks
 func dynamicDFS(trainName, startStation, endStation string, network *Network, occupiedStations, usedSegments map[string]bool, trains []*Train, visitedHistory map[string]bool) []string {
 	// Initialize the stack with the start station
 	stack := [][]string{{startStation}}
